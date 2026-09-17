@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -7,6 +8,12 @@ class MessageRole(str, Enum):
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
+
+
+class ProviderName(str, Enum):
+    OPENAI = "openai"
+    CLAUDE = "claude"
+    GEMINI = "gemini"
 
 
 class Message(BaseModel):
@@ -33,3 +40,14 @@ class ComparisonOutcome(BaseModel):
     prompt: str
     results: list[LLMResponse]
     total_latency_ms: int = Field(ge=0)
+
+
+class ContinueOutcome(BaseModel):
+    request_id: str
+    result: LLMResponse
+
+
+class ChatSession(BaseModel):
+    session_id: str
+    created_at: datetime
+    histories: dict[str, list[Message]]

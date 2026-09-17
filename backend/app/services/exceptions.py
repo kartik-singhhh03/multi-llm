@@ -38,3 +38,9 @@ class UnknownProviderError(ProviderError):
 
 class UnknownProviderFailureError(ProviderError):
     category = "unknown"
+
+
+class SessionNotFoundError(Exception):
+    def __init__(self, session_id: str) -> None:
+        super().__init__(f"Session '{session_id}' was not found")
+        self.session_id = session_id

@@ -35,6 +35,7 @@ class FakeProvider:
         self._raise_exc = raise_exc
         self._started_events = started_events
         self._completion_log = completion_log
+        self.calls: list[list[Message]] = []
 
     @property
     def model(self) -> str:
@@ -42,7 +43,8 @@ class FakeProvider:
 
     async def generate(self, messages: list[Message]) -> LLMResponse:
         started = time.perf_counter()
-        assert messages[0].role == MessageRole.USER
+        self.calls.append([message.model_copy() for message in messages])
+        assert messages[-1].role == MessageRole.USER
         if self._started_events is not None:
             self._started_events[self.provider_name].set()
             await asyncio.wait_for(

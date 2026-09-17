@@ -1,6 +1,6 @@
 # Architecture
 
-Phase 1 established a split frontend/backend foundation. Phase 2 added isolated LLM provider adapters. Phase 3 adds concurrent comparison through `POST /api/chat/compare`. Conversation history and the frontend comparison UI are still later phases.
+Phase 1 established a split frontend/backend foundation. Phase 2 added isolated LLM provider adapters. Phase 3 added concurrent comparison through `POST /api/chat/compare`. Phase 4 added in-memory sessions and independent conversation history per model. Phase 5 wires the React UI to those APIs so a user can compare answers side-by-side and continue with one model.
 
 ## Current System
 
@@ -11,9 +11,14 @@ User
 React Frontend  (Vite + TypeScript + Tailwind CSS)
   |
   | HTTP  GET /health
+  | HTTP  POST /api/session
+  | HTTP  DELETE /api/session/{session_id}
   | HTTP  POST /api/chat/compare
+  | HTTP  POST /api/chat/continue
   v
 FastAPI Backend
+  |
+  +--> SessionManager (in-memory)
   |
   +--> LLMOrchestrator
          |
@@ -22,15 +27,16 @@ FastAPI Backend
          +--> Gemini Provider
 ```
 
-The frontend still uses `GET /health` for the landing-page connection indicator. The comparison endpoint is available on the backend; the side-by-side chat UI is not implemented yet.
+The React UI uses `GET /health` for the connection indicator, `POST /api/chat/compare` for side-by-side answers, and `POST /api/chat/continue` after the user picks a model. API keys stay on the backend.
 
 The backend is a FastAPI app with:
 
 - explicit CORS origins for the Vite development server
 - environment-based configuration, including provider keys and model names
 - `GET /health`
-- `POST /api/chat/compare`
-- isolated OpenAI, Claude, and Gemini provider adapters
+- `POST /api/session` and `DELETE /api/session/{session_id}`
+- `POST /api/chat/compare` and `POST /api/chat/continue`
+- independent OpenAI, Claude, and Gemini histories per session
 - concurrent orchestration with failure isolation
 
 ## Phase 2 — LLM Provider Architecture
@@ -146,9 +152,135 @@ A comparison request is valid even if Claude times out or Gemini is missing an A
 
 The future UI can render `results[0]`, `results[1]`, and `results[2]` with the same fields: `provider`, `model`, `content`, `status`, `latency_ms`, and `error`. It does not need OpenAI, Anthropic, or Gemini response shapes. Results are always in that order, even if Gemini finishes first.
 
-### Why the endpoint is stateless in Phase 3
+### Why the endpoint was stateless in Phase 3
 
-`POST /api/chat/compare` accepts a prompt and returns a comparison. Nothing is stored: no sessions, chat IDs, users, database rows, or Redis keys. Continuation and independent histories belong to a later phase.
+Phase 3 `POST /api/chat/compare` accepted a prompt and returned a comparison with no stored history. Phase 4 adds session state around that same orchestrator.
+
+## Phase 4 — Session and Conversation History
+
+Phase 4 introduces `SessionManager`. Each chat session keeps three independent transcripts: OpenAI, Claude, and Gemini.
+
+```
+                    Chat Session
+                        |
+        +---------------+---------------+
+        |               |               |
+        v               v               v
+     OpenAI          Claude          Gemini
+     History         History         History
+        |               |               |
+        v               v               v
+     Provider         Provider        Provider
+```
+
+### Why session state exists
+
+Follow-up questions need previous turns. Without a session, every request would be a brand-new one-shot prompt and "Continue with this model" could not work.
+
+### Why each model has an independent history
+
+The three models give different answers. If Claude later explains a C++ example, that text belongs only in Claude's context. Sending Claude's answer to OpenAI would mix voices and leak another model's reasoning into the next prompt.
+
+### Compare behavior
+
+```
+                  New Prompt
+                       |
+                       v
+             +---------+---------+
+             |         |         |
+             v         v         v
+          OpenAI    Claude     Gemini
+          history   history    history
+             |         |         |
+             +---------+---------+
+                       |
+                       v
+                  3 responses
+```
+
+The same user prompt is appended to all three histories. Then `LLMOrchestrator` calls the three providers concurrently, each with **only** that provider's messages. A successful assistant reply is appended only to that provider. A failed provider keeps the user turn and does not get a fake assistant error message.
+
+If `session_id` is omitted, compare creates a session. If a session ID is supplied and missing, the API returns HTTP 404.
+
+### Continue behavior
+
+```
+                  New Prompt
+                       |
+                       v
+                 Claude History
+                       |
+                       v
+                 Claude Provider
+                       |
+                       v
+                    Response
+```
+
+`POST /api/chat/continue` with `model=claude` appends the follow-up only to Claude, calls Claude once, and leaves OpenAI and Gemini unchanged.
+
+### Why provider-specific message conversion remains inside providers
+
+Session history stores normalized `Message` objects (`system` / `user` / `assistant`). OpenAI, Anthropic, and Gemini still convert those messages inside their own provider modules. The session layer never sees vendor SDK types.
+
+### Why Phase 4 uses in-memory storage
+
+This is an academic prototype. A process-local dictionary is enough to prove independent histories and continuation. No Redis, SQLAlchemy, or database driver is required.
+
+### What happens when the server restarts
+
+All sessions disappear. State is also not shared across multiple backend processes. That is expected for this phase.
+
+### How Redis or a database could replace SessionManager later
+
+Keep the `SessionManager` method signatures (`create_session`, `get_history`, `append_message`, ...). Swap the dict for Redis lists or SQL rows. `Message`, providers, and HTTP routes would not need to change.
+
+## Phase 5 — Frontend Integration
+
+Phase 5 connects the React frontend to FastAPI. The browser never calls OpenAI, Anthropic, or Gemini directly.
+
+```
+User
+ |
+ v
+React UI
+ |
+ v
+FastAPI
+ |
+ +---- OpenAI
+ +---- Claude
+ +---- Gemini
+ |
+ v
+Comparison results
+ |
+ v
+Side-by-side cards
+ |
+ v
+Selected model
+ |
+ v
+Continue endpoint
+```
+
+### What the UI does
+
+- `GET /health` shows **Backend Connected** or **Backend Offline**.
+- The first prompt calls `POST /api/chat/compare` (no `session_id`). FastAPI creates a session.
+- Results render as OpenAI, Claude, then Gemini cards: provider, model, response, latency, status.
+- **Continue with this model** switches to continuation mode and later follow-ups call `POST /api/chat/continue` with `model` set to `openai`, `claude`, or `gemini`.
+- The same `session_id` is kept in React state for that conversation.
+- **New Comparison** clears the UI and drops the stored session ID so the next prompt starts a new session.
+- Partial provider failures stay on their own card. Missing API keys show a configuration error, not fake answers.
+
+API keys remain backend-only. There is still no authentication, database, Redis, streaming, or RAG.
+
+## Phase 6 — Frontend UI Polish
+
+Phase 6 is a visual and usability pass on the existing React UI. Compare, continue, and session behavior are unchanged. The layout was tightened for a clearer header, prompt, side-by-side cards, and continue-with-one-model flow on mobile, tablet, and desktop.
 
 ## Target Architecture
 
@@ -170,15 +302,3 @@ FastAPI Backend
 ```
 
 API keys remain on the backend only. The browser never receives provider secrets.
-
-The frontend still only uses `GET /health` for the landing page. `POST /api/chat/compare` is implemented on the backend; the side-by-side comparison UI is not built yet.
-
-## Planned Later-Phase Behavior
-
-Later phases will add:
-
-- **Independent model histories:** each model keeps its own conversation transcript.
-- **Continuation with a selected model:** after comparing answers, the user can continue only with the chosen model.
-- **Frontend comparison UI:** side-by-side cards that render `POST /api/chat/compare` results.
-
-Those capabilities are not part of Phase 3.

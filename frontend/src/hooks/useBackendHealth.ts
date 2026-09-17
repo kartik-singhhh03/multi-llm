@@ -7,9 +7,7 @@ export type BackendConnectionStatus =
   | "connected"
   | "disconnected";
 
-export function useBackendHealth(
-  pollIntervalMs = 15000,
-): BackendConnectionStatus {
+export function useBackendHealth(): BackendConnectionStatus {
   const [status, setStatus] = useState<BackendConnectionStatus>("checking");
 
   useEffect(() => {
@@ -29,15 +27,11 @@ export function useBackendHealth(
     }
 
     void checkHealth();
-    const intervalId = window.setInterval(() => {
-      void checkHealth();
-    }, pollIntervalMs);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
     };
-  }, [pollIntervalMs]);
+  }, []);
 
   return status;
 }

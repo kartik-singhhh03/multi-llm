@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Protocol
 from uuid import uuid4
 
@@ -18,6 +18,7 @@ from app.services.exceptions import ProviderError
 from app.services.factory import get_provider as default_get_provider
 from app.services.models import (
     ComparisonOutcome,
+    ContinueOutcome,
     LLMResponse,
     Message,
     MessageRole,
@@ -53,6 +54,16 @@ class LLMOrchestrator:
         self._provider_names = tuple(provider_names)
 
     async def compare(self, prompt: str) -> ComparisonOutcome:
+        messages = [Message(role=MessageRole.USER, content=prompt)]
+        histories = {name: list(messages) for name in self._provider_names}
+        return await self.compare_messages(histories, prompt=prompt)
+
+    async def compare_messages(
+        self,
+        messages_by_provider: Mapping[str, Sequence[Message]],
+        *,
+        prompt: str,
+    ) -> ComparisonOutcome:
         request_id = str(uuid4())
         started = time.perf_counter()
         logger.info(
@@ -62,11 +73,14 @@ class LLMOrchestrator:
             ",".join(self._provider_names),
         )
 
-        messages = [Message(role=MessageRole.USER, content=prompt)]
         providers = [self._provider_factory(name) for name in self._provider_names]
         gathered = await asyncio.gather(
             *[
-                self._invoke(request_id, provider, messages)
+                self._invoke(
+                    request_id,
+                    provider,
+                    list(messages_by_provider.get(provider.provider_name, ())),
+                )
                 for provider in providers
             ],
             return_exceptions=True,
@@ -88,6 +102,30 @@ class LLMOrchestrator:
             results=results,
             total_latency_ms=total_latency_ms,
         )
+
+    async def generate_one(
+        self,
+        provider_name: str,
+        messages: Sequence[Message],
+    ) -> ContinueOutcome:
+        request_id = str(uuid4())
+        logger.info(
+            "Continuation started request_id=%s provider=%s message_count=%s",
+            request_id,
+            provider_name,
+            len(messages),
+        )
+        provider = self._provider_factory(provider_name)
+        result = await self._invoke(request_id, provider, list(messages))
+        normalized = self._normalize_result(provider, result)
+        logger.info(
+            "Continuation completed request_id=%s provider=%s status=%s latency_ms=%s",
+            request_id,
+            provider_name,
+            normalized.status.value,
+            normalized.latency_ms,
+        )
+        return ContinueOutcome(request_id=request_id, result=normalized)
 
     async def _invoke(
         self,

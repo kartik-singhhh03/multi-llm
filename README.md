@@ -4,24 +4,20 @@ Academic project for the IIT Patna AI/ML program.
 
 ## 1. Project Overview
 
-This repository is a ChatGPT-like application. A single user prompt can already be sent to OpenAI, Claude, and Gemini in parallel through the backend. Responses will later appear side by side in the UI, and the user will be able to continue the conversation with a selected model.
-
-**The frontend comparison UI is not implemented yet.** Phase 1 established the structure and health check. Phase 2 added backend LLM provider adapters. Phase 3 adds concurrent comparison at `POST /api/chat/compare`.
+This repository is a ChatGPT-like application. A single user prompt is sent to OpenAI, Claude, and Gemini in parallel. The React UI shows the three answers side by side. The user can continue the conversation with one selected model.
 
 ## 2. Project Objective
 
-Create a clean, professional, and extensible multi-LLM comparison chat application. The frontend and backend are separate applications that communicate over HTTP. Conversation history, authentication, and persistence are intentionally deferred.
+Create a clean, professional, and extensible multi-LLM comparison chat application. The frontend and backend are separate applications that communicate over HTTP. Authentication, databases, and persistence are intentionally deferred.
 
 ## 3. Core Requirements
 
-The finished application (across later phases) will:
+The application:
 
-- Send one user question to multiple LLMs in parallel
-- Display responses in a side-by-side panel
-- Allow the user to choose "Continue with this model"
-- Keep an independent conversation history for each model
-
-Those features are **planned**. The backend can already run the three providers concurrently. The side-by-side UI and conversation continuation are not implemented yet.
+- Sends one user question to multiple LLMs in parallel
+- Displays responses in a side-by-side panel
+- Lets the user choose "Continue with this model"
+- Keeps an independent conversation history for each model on the backend
 
 ## 4. Planned Architecture
 
@@ -42,7 +38,7 @@ FastAPI Backend
   +--> Gemini Provider
 ```
 
-API keys will live only on the backend. The frontend will never call LLM providers directly.
+API keys live only on the backend. The frontend never calls LLM providers directly.
 
 See [docs/architecture.md](docs/architecture.md) for more detail.
 
@@ -69,33 +65,42 @@ See [docs/architecture.md](docs/architecture.md) for more detail.
 
 ## 6. Current Phase
 
-Phase 1, Phase 2, and Phase 3 are complete.
+Phase 1 through Phase 6 are complete.
 
-Included now:
+Phase 5:
+
+- Frontend comparison UI implemented
+- Side-by-side model responses
+- Continue-with-model UI
+- Session-aware frontend integration
+- Responsive design
+
+Phase 6:
+
+- Frontend UI polish and responsive UX
+
+Also included:
 
 - FastAPI application with CORS for the Vite dev server
 - `GET /health` endpoint
-- React application shell with a live backend status indicator
 - Backend provider abstraction for OpenAI, Anthropic Claude, and Google Gemini
-- Normalized `Message` and `LLMResponse` models
-- Provider factory: `get_provider("openai" | "claude" | "gemini")`
 - Concurrent comparison through `LLMOrchestrator`
 - `POST /api/chat/compare`
+- Session-based conversations (`POST /api/session`, `DELETE /api/session/{session_id}`)
+- Independent OpenAI, Claude, and Gemini histories
+- Continue-with-model flow (`POST /api/chat/continue`)
 - Normalized results with provider failure isolation
-- Wall-clock total latency (approximately the slowest provider)
-- Environment-based API keys and model names
+- In-memory session storage (not persisted across restarts)
 - Pytest coverage with mocked SDK clients (no paid API calls)
 
-Not included yet:
+Not included:
 
-- Frontend comparison UI
-- Conversation history
-- "Continue with this model"
 - Authentication
 - Database
 - Redis
 - Docker
 - Streaming
+- Persistent sessions
 - Mock or fake AI responses in the application
 
 ## 7. Project Structure
@@ -174,11 +179,15 @@ The API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 Health check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 
-Compare endpoint: `POST http://127.0.0.1:8000/api/chat/compare`
+Session: `POST http://127.0.0.1:8000/api/session`
+
+Compare: `POST http://127.0.0.1:8000/api/chat/compare`
+
+Continue: `POST http://127.0.0.1:8000/api/chat/continue`
 
 OpenAPI docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-Optional: copy `backend/.env.example` to `backend/.env` and fill values later. The backend starts successfully with empty API keys. A comparison without keys returns structured provider errors instead of fake answers.
+Optional: copy `backend/.env.example` to `backend/.env` and fill values later. The backend starts successfully with empty API keys. A comparison without keys returns structured provider errors instead of fake answers. Sessions are stored in memory and are lost when the process restarts.
 
 ## 10. Running the Frontend
 
@@ -192,7 +201,7 @@ npm run dev
 
 The Vite development server runs at [http://localhost:5173](http://localhost:5173).
 
-The landing screen shows **Backend Status: Connected** when `GET /health` succeeds, or **Backend Status: Disconnected** when the backend is unreachable.
+The header shows **Backend Connected** when `GET /health` succeeds, or **Backend Offline** when the backend is unreachable. Ask a question to compare OpenAI, Claude, and Gemini. Then choose one model to continue.
 
 Optional: copy `frontend/.env.example` to `frontend/.env` if you need a non-default API URL. The default is `http://localhost:8000`.
 
@@ -218,18 +227,12 @@ Backend (`backend/.env.example`):
 
 Frontend (`frontend/.env.example`):
 
-| Variable | Purpose | Required in Phase 1 |
+| Variable | Purpose | Required |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | FastAPI base URL | No (defaults to `http://localhost:8000`) |
 
 Never commit real `.env` files or API keys. Never place LLM keys in frontend code.
 
-## 12. Future Phases
+## 12. Later Work
 
-Later phases are expected to add:
-
-1. Side-by-side response rendering in the React UI
-2. Independent conversation history per model
-3. "Continue with this model" conversation flow
-
-The backend comparison API exists; the frontend chat experience does not yet.
+Phase 6 polishes the existing comparison UI. The required demo is complete. This project does not include authentication, a database, Redis, streaming, or RAG.
