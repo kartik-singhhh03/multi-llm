@@ -26,3 +26,10 @@ class LLMResponse(BaseModel):
     status: ResponseStatus
     latency_ms: int = Field(ge=0)
     error: str | None = None
+
+
+class ComparisonOutcome(BaseModel):
+    request_id: str
+    prompt: str
+    results: list[LLMResponse]
+    total_latency_ms: int = Field(ge=0)

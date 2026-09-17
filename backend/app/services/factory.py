@@ -14,8 +14,8 @@ def get_provider(
 ) -> BaseLLMProvider:
     """Return a provider implementation by name.
 
-    This factory does not run providers in parallel. Phase 3 will add
-    orchestration across providers.
+    The factory only constructs providers. Concurrent comparison lives in
+    LLMOrchestrator.
     """
     resolved = settings or get_settings()
     key = name.strip().lower()

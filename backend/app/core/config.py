@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     llm_timeout_seconds: float = 30.0
     llm_max_output_tokens: int = 2048
+    max_prompt_length: int = 8000
 
     @property
     def cors_origin_list(self) -> list[str]:
