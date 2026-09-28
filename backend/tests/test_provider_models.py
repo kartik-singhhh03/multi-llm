@@ -83,7 +83,7 @@ def _test_settings():  # type: ignore[no-untyped-def]
         anthropic_api_key="test-anthropic",
         anthropic_model="claude-sonnet-4-5",
         gemini_api_key="test-gemini",
-        gemini_model="gemini-2.5-flash",
+        gemini_model="gemini-3.8-flash",
         llm_timeout_seconds=30.0,
         llm_max_output_tokens=2048,
     )

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { btnSecondary } from "../lib/ui";
+import { btnQuiet } from "../lib/ui";
 
 type CopyButtonProps = {
   text: string;
@@ -40,7 +40,7 @@ export function CopyButton({ text }: CopyButtonProps) {
       onClick={() => void handleCopy()}
       disabled={!text.trim()}
       aria-label={copied ? "Copied" : "Copy response"}
-      className={`${btnSecondary} px-2 py-1 text-xs font-normal`}
+      className={btnQuiet}
     >
       {copied ? "Copied ✓" : "Copy"}
     </button>

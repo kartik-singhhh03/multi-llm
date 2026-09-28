@@ -1,5 +1,12 @@
 export type ProviderName = "openai" | "claude" | "gemini";
 
+export type ProviderInfo = {
+  name: string;
+  display_name: string;
+  model: string;
+  available: boolean;
+};
+
 export type ResponseStatus = "success" | "error";
 
 export type MessageRole = "system" | "user" | "assistant";

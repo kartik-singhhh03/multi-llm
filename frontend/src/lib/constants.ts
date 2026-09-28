@@ -1,5 +1,6 @@
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
 
 export const APP_NAME = "Multi-LLM Custom ChatGPT";
 
@@ -18,6 +19,6 @@ export const PROVIDER_LABELS = {
 
 export const EXAMPLE_PROMPTS = [
   "Explain recursion to a beginner",
-  "What is REST vs GraphQL?",
-  "Explain process vs thread",
+  "REST vs GraphQL",
+  "Process vs thread",
 ] as const;

@@ -6,7 +6,7 @@ type MarkdownContentProps = {
 
 export function MarkdownContent({ text }: MarkdownContentProps) {
   return (
-    <div className="markdown-body text-sm leading-7 text-zinc-200">
+    <div className="markdown-body text-[0.9375rem] leading-7 text-zinc-200">
       <Markdown
         components={{
           a: ({ href, children }) => (

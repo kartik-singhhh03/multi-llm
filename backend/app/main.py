@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
 from app.api.router import api_router
-from app.core.config import settings
+from app.core.config import get_settings
 from app.services.exceptions import SessionNotFoundError
 
 logging.basicConfig(
@@ -15,21 +15,21 @@ logging.basicConfig(
 )
 
 app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
+    title=get_settings().app_name,
+    version=get_settings().app_version,
     description="Academic project foundation for comparing multiple LLM responses.",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
+    allow_origins=get_settings().cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(health_router)
-app.include_router(api_router, prefix=settings.api_prefix)
+app.include_router(api_router, prefix=get_settings().api_prefix)
 
 
 @app.exception_handler(SessionNotFoundError)

@@ -5,6 +5,7 @@ import type {
   CompareResponse,
   ContinueRequest,
   ContinueResponse,
+  ProviderInfo,
   SessionResponse,
 } from "../types/chat";
 import type { HealthResponse } from "../types/health";
@@ -17,6 +18,14 @@ export async function getHealth(): Promise<HealthResponse> {
     throw new ApiError("Health check returned an invalid response");
   }
   return data;
+}
+
+export async function getProviders(): Promise<ProviderInfo[]> {
+  const data = await requestJson<{ providers: ProviderInfo[] }>(
+    "/api/providers",
+    { method: "GET" },
+  );
+  return data.providers;
 }
 
 export async function createSession(): Promise<SessionResponse> {

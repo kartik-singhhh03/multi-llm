@@ -30,7 +30,7 @@ def test_gemini_converts_messages_and_system_instruction() -> None:
 async def test_gemini_missing_api_key_returns_error() -> None:
     provider = GeminiProvider(
         api_key="",
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         timeout_seconds=30,
         max_output_tokens=256,
         client=_fake_gemini_client("should not be called"),
@@ -49,7 +49,7 @@ async def test_gemini_success_normalizes_response() -> None:
     client = _fake_gemini_client("Gemini answer")
     provider = GeminiProvider(
         api_key="gemini-test",
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         timeout_seconds=30,
         max_output_tokens=256,
         client=client,
@@ -81,7 +81,7 @@ async def test_gemini_sdk_failure_is_safe_application_error() -> None:
     client = _fake_gemini_client_error(error)
     provider = GeminiProvider(
         api_key="gemini-test",
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         timeout_seconds=30,
         max_output_tokens=256,
         client=client,

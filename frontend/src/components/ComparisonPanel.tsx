@@ -25,18 +25,22 @@ export function ComparisonPanel({
   const resultMap = new Map(results.map((item) => [item.provider, item]));
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium text-zinc-200">Comparison</h2>
+          <h2 className="text-base font-medium tracking-tight text-zinc-100">
+            Comparison
+          </h2>
           {totalLatencyMs != null && !loading ? (
-            <p className="text-xs text-zinc-500">
-              Total {formatLatency(totalLatencyMs)}
+            <p className="mt-0.5 text-xs text-zinc-500">
+              3 models · {formatLatency(totalLatencyMs)}
             </p>
           ) : loading ? (
             <LoadingState />
           ) : (
-            <p className="text-xs text-zinc-500">OpenAI · Claude · Gemini</p>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              OpenAI · Claude · Gemini
+            </p>
           )}
         </div>
         {onNewComparison && !loading ? (

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.schemas.chat import (
     CompareRequest,
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 def get_orchestrator() -> LLMOrchestrator:
+    """Always compare OpenAI, Claude, and Gemini. Missing keys become card errors."""
     return LLMOrchestrator()
 
 
@@ -23,7 +24,7 @@ def get_orchestrator() -> LLMOrchestrator:
     response_model=CompareResponse,
     summary="Compare LLM responses",
     description=(
-        "Send one prompt to OpenAI, Claude, and Gemini at the same time. "
+        "Send one prompt to all configured LLM providers at the same time. "
         "Each provider receives only its own session history. "
         "If session_id is omitted, a new session is created. "
         "The comparison request returns HTTP 200 even if individual providers fail."
@@ -34,6 +35,13 @@ async def compare_prompt(
     orchestrator: LLMOrchestrator = Depends(get_orchestrator),
     sessions: SessionManager = Depends(get_session_manager),
 ) -> CompareResponse:
+    # Guard: orchestrator has no providers (works under both real config and test DI)
+    if not orchestrator._provider_names:
+        raise HTTPException(
+            status_code=400,
+            detail="No LLM providers are configured. Add at least one API key to backend/.env.",
+        )
+
     if payload.session_id is None:
         session = await sessions.create_session()
         session_id = session.session_id
@@ -70,8 +78,7 @@ async def compare_prompt(
     summary="Continue with one model",
     description=(
         "Send a follow-up prompt to a single provider using only that "
-        "provider's conversation history. OpenAI, Claude, and Gemini histories "
-        "stay independent."
+        "provider's conversation history. Provider histories stay independent."
     ),
 )
 async def continue_prompt(
@@ -80,6 +87,12 @@ async def continue_prompt(
     sessions: SessionManager = Depends(get_session_manager),
 ) -> ContinueResponse:
     provider_name = payload.model.value
+    # Guard: check the orchestrator's own provider list (works with test DI overrides)
+    if orchestrator._provider_names and provider_name not in orchestrator._provider_names:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Provider '{provider_name}' is not configured. Add its API key to backend/.env.",
+        )
     user_message = Message(role=MessageRole.USER, content=payload.prompt)
     async with sessions.hold(payload.session_id):
         await sessions.append_message(payload.session_id, provider_name, user_message)

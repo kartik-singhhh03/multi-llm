@@ -1,87 +1,62 @@
 # Architecture
 
-Phase 1 established a split frontend/backend foundation. Phase 2 added isolated LLM provider adapters. Phase 3 added concurrent comparison through `POST /api/chat/compare`. Phase 4 added in-memory sessions and independent conversation history per model. Phase 5 wires the React UI to those APIs so a user can compare answers side-by-side and continue with one model.
+This document is for explaining the IIT Patna Project 1 implementation in a viva.
 
-## Current System
+The application sends one question to OpenAI, Claude, and Gemini in parallel, shows the answers side-by-side, and lets the user continue with one model. Each model has its own conversation history.
 
 ```
-User
+React
   |
   v
-React Frontend  (Vite + TypeScript + Tailwind CSS)
+FastAPI
   |
-  | HTTP  GET /health
-  | HTTP  POST /api/session
-  | HTTP  DELETE /api/session/{session_id}
-  | HTTP  POST /api/chat/compare
-  | HTTP  POST /api/chat/continue
+  +-- OpenAI
+  +-- Claude
+  +-- Gemini
+  |
   v
-FastAPI Backend
+Comparison
   |
-  +--> SessionManager (in-memory)
+  v
+Side-by-side UI
   |
-  +--> LLMOrchestrator
-         |
-         +--> OpenAI Provider
-         +--> Claude Provider
-         +--> Gemini Provider
+  v
+Selected-model continuation
 ```
 
-The React UI uses `GET /health` for the connection indicator, `POST /api/chat/compare` for side-by-side answers, and `POST /api/chat/continue` after the user picks a model. API keys stay on the backend.
+## 1. System overview
 
-The backend is a FastAPI app with:
+The frontend is a single-page React app. The backend is FastAPI. The browser never calls vendor APIs. FastAPI creates an in-memory session, fans the prompt out to three provider adapters, and returns normalized results.
 
-- explicit CORS origins for the Vite development server
-- environment-based configuration, including provider keys and model names
+Main routes:
+
 - `GET /health`
-- `POST /api/session` and `DELETE /api/session/{session_id}`
-- `POST /api/chat/compare` and `POST /api/chat/continue`
-- independent OpenAI, Claude, and Gemini histories per session
-- concurrent orchestration with failure isolation
+- `POST /api/session`
+- `DELETE /api/session/{session_id}`
+- `POST /api/chat/compare`
+- `POST /api/chat/continue`
 
-## Phase 2 — LLM Provider Architecture
+## 2. Frontend
 
-Phase 2 adds a common provider interface. Each vendor SDK is isolated behind that interface.
+React + TypeScript + Vite + Tailwind CSS.
 
-```
-User prompt
-    |
-    v
-BaseLLMProvider.generate(messages)
-    |
-    +---- OpenAIProvider
-    |
-    +---- ClaudeProvider
-    |
-    +---- GeminiProvider
-    |
-    v
-Normalized LLMResponse
-```
+`useChat` holds `sessionId`, comparison results, and continuation state. The first compare omits `session_id` so FastAPI creates a session. **Continue** calls `/api/chat/continue` with `openai`, `claude`, or `gemini`. **New Comparison** clears the stored session ID. **Back to results** restores the previous cards without another API call.
 
-### Why a common provider interface exists
+Cards render in a stable order: OpenAI, Claude, Gemini. A failed provider stays on its own card.
 
-OpenAI, Anthropic, and Gemini expose different clients, request shapes, and error types. The rest of the backend should not need to know those details. `BaseLLMProvider` gives every vendor the same async method:
+## 3. FastAPI backend
 
-```python
-response = await get_provider("openai").generate(messages)
-```
+FastAPI loads settings from environment variables (`backend/.env`). CORS allows the Vite origin. Pydantic validates prompts (non-empty, max 8000 characters). Missing sessions return HTTP 404. Individual provider failures still return HTTP 200 with structured error results.
 
-The same call works for `"claude"` and `"gemini"`.
+## 4. Provider abstraction
 
-### Why provider-specific SDK code is isolated
+`BaseLLMProvider.generate(messages)` is the common interface. Vendor SDK code lives only in:
 
-SDK imports, request conversion, and exception mapping live only in:
+- `openai_provider.py`
+- `claude_provider.py`
+- `gemini_provider.py`
 
-- `backend/app/services/openai_provider.py`
-- `backend/app/services/claude_provider.py`
-- `backend/app/services/gemini_provider.py`
-
-If Anthropic changes how system prompts are sent, only the Claude provider changes. FastAPI routes and (later) orchestration stay on `Message` and `LLMResponse`.
-
-### Why normalized responses are used
-
-Each provider returns the same object:
+Each adapter converts the shared `Message` list into the vendor request shape and returns a normalized `LLMResponse`:
 
 - `provider`
 - `model`
@@ -90,215 +65,42 @@ Each provider returns the same object:
 - `latency_ms`
 - `error`
 
-Success and failure use that same shape. The orchestrator collects three `LLMResponse` objects without translating vendor payloads.
+A missing API key becomes a configuration error, not a fake answer.
 
-### Why API keys remain server-side
+## 5. Parallel orchestration
 
-Provider credentials are loaded from backend environment variables. They are never sent to the React app, never returned by an endpoint, and never written into logs. Missing keys do not prevent FastAPI from starting; a later generate call returns a configuration error instead of a fake answer.
+`LLMOrchestrator` uses `asyncio.gather(..., return_exceptions=True)` so OpenAI, Claude, and Gemini overlap in time. Results are always returned in the order OpenAI → Claude → Gemini, even if Gemini finishes first. `total_latency_ms` is wall-clock time around the gather, not the sum of the three latencies.
 
-## Phase 3 — Parallel LLM Orchestration
+## 6. Session / history architecture
 
-Phase 3 adds `LLMOrchestrator` and `POST /api/chat/compare`. One prompt is sent to OpenAI, Claude, and Gemini at the same time.
+`SessionManager` stores one session as three lists: OpenAI history, Claude history, Gemini history. Compare appends the same user prompt to all three, then each provider is called with **only** its own messages. A successful assistant reply is appended only to that provider. Failed providers keep the user turn and do not get a fake assistant error message.
 
-```
-                    POST /api/chat/compare
-                              |
-                              v
-                       LLMOrchestrator
-                              |
-             +----------------+----------------+
-             |                |                |
-             v                v                v
-        OpenAIProvider   ClaudeProvider   GeminiProvider
-             |                |                |
-             +----------------+----------------+
-                              |
-                              v
-                       CompareResponse
-```
+Sessions live in process memory. They disappear on restart.
 
-### Why orchestration exists
+## 7. Continue-with-model flow
 
-The API layer should not call each vendor SDK itself. The orchestrator asks the factory for three `BaseLLMProvider` instances, converts the prompt into a `Message`, and collects normalized `LLMResponse` objects. Provider SDKs stay hidden.
+`POST /api/chat/continue` with `model=claude` appends the follow-up only to Claude, calls Claude once, and leaves OpenAI and Gemini unchanged. The same applies for `openai` and `gemini`.
 
-### How asyncio concurrency works
+If the user later compares again on the **same** `session_id`, each provider receives its own prior transcript plus the new question.
 
-The orchestrator creates one coroutine per provider and awaits them together:
+## 8. Error handling
 
-```python
-results = await asyncio.gather(
-    openai_provider.generate(messages),
-    claude_provider.generate(messages),
-    gemini_provider.generate(messages),
-    return_exceptions=True,
-)
-```
+- Empty or oversized prompts: HTTP 422
+- Unknown session: HTTP 404
+- One provider timeout or missing key: that card is `status=error`; the others can still succeed
+- All providers failing: HTTP 200 with three error results and no fabricated text
 
-`asyncio.gather` runs the three tasks on the event loop concurrently. It does not start Claude only after OpenAI has finished.
+The UI maps network failure to a backend-offline message and session 404 to a “start a new comparison” message.
 
-### Why providers run concurrently
+## 9. Security
 
-A sequential implementation would add the three provider times together. Concurrent execution overlaps waiting on network I/O, so the user waits about as long as the slowest model.
+API keys are backend environment variables. They are not sent to the React app, not returned by endpoints, and not written into frontend source. Tests use mocked SDKs. `backend/.env` is gitignored.
 
-### Why one provider failure does not fail the entire comparison
+## 10. Current limitations
 
-A comparison request is valid even if Claude times out or Gemini is missing an API key. `return_exceptions=True` plus normalized error `LLMResponse` objects keep successful providers in the payload. The endpoint still returns HTTP 200. Unexpected bugs in the orchestrator itself still surface as HTTP 500.
+- In-memory sessions only
+- No authentication, database, Redis, streaming, or RAG
+- Real answers require local provider keys
+- A page refresh starts a new frontend session
 
-### Why total latency is based on wall-clock duration
-
-`total_latency_ms` is measured with a monotonic clock around the gather call. It is the elapsed time of the comparison, not `openai_latency + claude_latency + gemini_latency`. Individual `latency_ms` values remain on each provider result.
-
-### How normalized LLMResponse objects simplify the frontend
-
-The future UI can render `results[0]`, `results[1]`, and `results[2]` with the same fields: `provider`, `model`, `content`, `status`, `latency_ms`, and `error`. It does not need OpenAI, Anthropic, or Gemini response shapes. Results are always in that order, even if Gemini finishes first.
-
-### Why the endpoint was stateless in Phase 3
-
-Phase 3 `POST /api/chat/compare` accepted a prompt and returned a comparison with no stored history. Phase 4 adds session state around that same orchestrator.
-
-## Phase 4 — Session and Conversation History
-
-Phase 4 introduces `SessionManager`. Each chat session keeps three independent transcripts: OpenAI, Claude, and Gemini.
-
-```
-                    Chat Session
-                        |
-        +---------------+---------------+
-        |               |               |
-        v               v               v
-     OpenAI          Claude          Gemini
-     History         History         History
-        |               |               |
-        v               v               v
-     Provider         Provider        Provider
-```
-
-### Why session state exists
-
-Follow-up questions need previous turns. Without a session, every request would be a brand-new one-shot prompt and "Continue with this model" could not work.
-
-### Why each model has an independent history
-
-The three models give different answers. If Claude later explains a C++ example, that text belongs only in Claude's context. Sending Claude's answer to OpenAI would mix voices and leak another model's reasoning into the next prompt.
-
-### Compare behavior
-
-```
-                  New Prompt
-                       |
-                       v
-             +---------+---------+
-             |         |         |
-             v         v         v
-          OpenAI    Claude     Gemini
-          history   history    history
-             |         |         |
-             +---------+---------+
-                       |
-                       v
-                  3 responses
-```
-
-The same user prompt is appended to all three histories. Then `LLMOrchestrator` calls the three providers concurrently, each with **only** that provider's messages. A successful assistant reply is appended only to that provider. A failed provider keeps the user turn and does not get a fake assistant error message.
-
-If `session_id` is omitted, compare creates a session. If a session ID is supplied and missing, the API returns HTTP 404.
-
-### Continue behavior
-
-```
-                  New Prompt
-                       |
-                       v
-                 Claude History
-                       |
-                       v
-                 Claude Provider
-                       |
-                       v
-                    Response
-```
-
-`POST /api/chat/continue` with `model=claude` appends the follow-up only to Claude, calls Claude once, and leaves OpenAI and Gemini unchanged.
-
-### Why provider-specific message conversion remains inside providers
-
-Session history stores normalized `Message` objects (`system` / `user` / `assistant`). OpenAI, Anthropic, and Gemini still convert those messages inside their own provider modules. The session layer never sees vendor SDK types.
-
-### Why Phase 4 uses in-memory storage
-
-This is an academic prototype. A process-local dictionary is enough to prove independent histories and continuation. No Redis, SQLAlchemy, or database driver is required.
-
-### What happens when the server restarts
-
-All sessions disappear. State is also not shared across multiple backend processes. That is expected for this phase.
-
-### How Redis or a database could replace SessionManager later
-
-Keep the `SessionManager` method signatures (`create_session`, `get_history`, `append_message`, ...). Swap the dict for Redis lists or SQL rows. `Message`, providers, and HTTP routes would not need to change.
-
-## Phase 5 — Frontend Integration
-
-Phase 5 connects the React frontend to FastAPI. The browser never calls OpenAI, Anthropic, or Gemini directly.
-
-```
-User
- |
- v
-React UI
- |
- v
-FastAPI
- |
- +---- OpenAI
- +---- Claude
- +---- Gemini
- |
- v
-Comparison results
- |
- v
-Side-by-side cards
- |
- v
-Selected model
- |
- v
-Continue endpoint
-```
-
-### What the UI does
-
-- `GET /health` shows **Backend Connected** or **Backend Offline**.
-- The first prompt calls `POST /api/chat/compare` (no `session_id`). FastAPI creates a session.
-- Results render as OpenAI, Claude, then Gemini cards: provider, model, response, latency, status.
-- **Continue with this model** switches to continuation mode and later follow-ups call `POST /api/chat/continue` with `model` set to `openai`, `claude`, or `gemini`.
-- The same `session_id` is kept in React state for that conversation.
-- **New Comparison** clears the UI and drops the stored session ID so the next prompt starts a new session.
-- Partial provider failures stay on their own card. Missing API keys show a configuration error, not fake answers.
-
-API keys remain backend-only. There is still no authentication, database, Redis, streaming, or RAG.
-
-## Phase 6 — Frontend UI Polish
-
-Phase 6 is a visual and usability pass on the existing React UI. Compare, continue, and session behavior are unchanged. The layout was tightened for a clearer header, prompt, side-by-side cards, and continue-with-one-model flow on mobile, tablet, and desktop.
-
-## Target Architecture
-
-```
-User
-  |
-  v
-React Frontend
-  |
-  | HTTP
-  v
-FastAPI Backend
-  |
-  +--> OpenAI Provider
-  |
-  +--> Claude Provider
-  |
-  +--> Gemini Provider
-```
-
-API keys remain on the backend only. The browser never receives provider secrets.
+Those limits are intentional for this academic prototype.

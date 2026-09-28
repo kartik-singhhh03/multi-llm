@@ -1,48 +1,27 @@
 # Multi-LLM Custom ChatGPT
 
-Academic project for the IIT Patna AI/ML program.
+Academic project for the IIT Patna AI/ML program (Project 1).
 
-## 1. Project Overview
+## Overview
 
-This repository is a ChatGPT-like application. A single user prompt is sent to OpenAI, Claude, and Gemini in parallel. The React UI shows the three answers side by side. The user can continue the conversation with one selected model.
+This is a ChatGPT-like application. One user question is sent to OpenAI, Claude, and Gemini at the same time. The three answers appear side-by-side. The user can continue the conversation with one selected model. Each model keeps its own independent history.
 
-## 2. Project Objective
+## Objective
 
-Create a clean, professional, and extensible multi-LLM comparison chat application. The frontend and backend are separate applications that communicate over HTTP. Authentication, databases, and persistence are intentionally deferred.
+Compare responses from multiple LLMs and continue with a selected model.
 
-## 3. Core Requirements
+## Features
 
-The application:
+- Parallel OpenAI / Claude / Gemini comparison
+- Side-by-side responses
+- Independent conversation histories
+- Continue with selected model
+- Response latency
+- Provider error handling
 
-- Sends one user question to multiple LLMs in parallel
-- Displays responses in a side-by-side panel
-- Lets the user choose "Continue with this model"
-- Keeps an independent conversation history for each model on the backend
+The project does not include authentication, a database, Redis, streaming, or RAG.
 
-## 4. Planned Architecture
-
-```
-User
-  |
-  v
-React Frontend
-  |
-  | HTTP
-  v
-FastAPI Backend
-  |
-  +--> OpenAI Provider
-  |
-  +--> Claude Provider
-  |
-  +--> Gemini Provider
-```
-
-API keys live only on the backend. The frontend never calls LLM providers directly.
-
-See [docs/architecture.md](docs/architecture.md) for more detail.
-
-## 5. Technology Stack
+## Tech Stack
 
 **Frontend**
 
@@ -53,145 +32,61 @@ See [docs/architecture.md](docs/architecture.md) for more detail.
 
 **Backend**
 
-- Python 3.10+
+- Python
 - FastAPI
 - Pydantic
-- Uvicorn
 
-**Package management**
+**LLMs**
 
-- Frontend: npm
-- Backend: Python venv + pip
+- OpenAI
+- Anthropic Claude
+- Google Gemini
 
-## 6. Current Phase
-
-Phase 1 through Phase 6 are complete.
-
-Phase 5:
-
-- Frontend comparison UI implemented
-- Side-by-side model responses
-- Continue-with-model UI
-- Session-aware frontend integration
-- Responsive design
-
-Phase 6:
-
-- Frontend UI polish and responsive UX
-
-Also included:
-
-- FastAPI application with CORS for the Vite dev server
-- `GET /health` endpoint
-- Backend provider abstraction for OpenAI, Anthropic Claude, and Google Gemini
-- Concurrent comparison through `LLMOrchestrator`
-- `POST /api/chat/compare`
-- Session-based conversations (`POST /api/session`, `DELETE /api/session/{session_id}`)
-- Independent OpenAI, Claude, and Gemini histories
-- Continue-with-model flow (`POST /api/chat/continue`)
-- Normalized results with provider failure isolation
-- In-memory session storage (not persisted across restarts)
-- Pytest coverage with mocked SDK clients (no paid API calls)
-
-Not included:
-
-- Authentication
-- Database
-- Redis
-- Docker
-- Streaming
-- Persistent sessions
-- Mock or fake AI responses in the application
-
-## 7. Project Structure
+## Architecture
 
 ```
-.
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── services/
-│   │   ├── types/
-│   │   ├── lib/
-│   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   └── index.css
-│   ├── public/
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── services/
-│   │   ├── schemas/
-│   │   ├── core/
-│   │   └── main.py
-│   ├── tests/
-│   ├── requirements.txt
-│   └── .env.example
-├── docs/
-│   └── architecture.md
-├── .gitignore
-└── README.md
+React
+  |
+  v
+FastAPI
+  |
+  +-- OpenAI
+  +-- Claude
+  +-- Gemini
+  |
+  v
+Comparison
+  |
+  v
+Side-by-side UI
+  |
+  v
+Selected-model continuation
 ```
 
-## 8. Local Setup
+The browser talks only to FastAPI. Provider SDKs and API keys stay on the backend.
 
-Prerequisites:
+See [docs/architecture.md](docs/architecture.md) for a viva-oriented explanation.
 
-- Node.js 18+
-- Python 3.10+
-- npm
+## Local Setup
 
-Clone or copy the project, then set up each application independently.
+Prerequisites: Node.js 18+, Python 3.10+, npm.
 
-On some Windows machines, the Python launcher is `py` rather than `python`. Use whichever command is available on your PATH.
+On some Windows machines the Python launcher is `py` rather than `python`.
 
-## 9. Running the Backend
+**Backend**
 
 ```bash
 cd backend
-python -m venv .venv
-```
-
-Windows activation:
-
-```bash
+py -m venv .venv
 .venv\Scripts\activate
-```
-
-macOS / Linux activation:
-
-```bash
-source .venv/bin/activate
-```
-
-Install dependencies and start the server:
-
-```bash
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-The API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
+The API is at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-Health check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-
-Session: `POST http://127.0.0.1:8000/api/session`
-
-Compare: `POST http://127.0.0.1:8000/api/chat/compare`
-
-Continue: `POST http://127.0.0.1:8000/api/chat/continue`
-
-OpenAPI docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
-Optional: copy `backend/.env.example` to `backend/.env` and fill values later. The backend starts successfully with empty API keys. A comparison without keys returns structured provider errors instead of fake answers. Sessions are stored in memory and are lost when the process restarts.
-
-## 10. Running the Frontend
-
-In a second terminal:
+**Frontend**
 
 ```bash
 cd frontend
@@ -199,40 +94,89 @@ npm install
 npm run dev
 ```
 
-The Vite development server runs at [http://localhost:5173](http://localhost:5173).
+The UI is at [http://localhost:5173](http://localhost:5173).
 
-The header shows **Backend Connected** when `GET /health` succeeds, or **Backend Offline** when the backend is unreachable. Ask a question to compare OpenAI, Claude, and Gemini. Then choose one model to continue.
+Copy `backend/.env.example` to `backend/.env` and add provider keys for live answers. The backend starts with empty keys. A comparison without keys returns structured provider errors instead of fake answers.
 
-Optional: copy `frontend/.env.example` to `frontend/.env` if you need a non-default API URL. The default is `http://localhost:8000`.
+## Environment Variables
 
-## 11. Environment Variables
+Documented names only. Never put real keys in this file or in frontend code.
 
 Backend (`backend/.env.example`):
 
-| Variable | Purpose | Required to start the backend |
-| --- | --- | --- |
-| `APP_NAME` | FastAPI title | No |
-| `APP_VERSION` | FastAPI version | No |
-| `API_PREFIX` | Future API prefix, default `/api` | No |
-| `CORS_ORIGINS` | Allowed frontend origins | No (defaults to Vite localhost) |
-| `LLM_TIMEOUT_SECONDS` | Provider request timeout | No |
-| `LLM_MAX_OUTPUT_TOKENS` | Max generated tokens | No |
-| `MAX_PROMPT_LENGTH` | Maximum compare prompt length | No |
-| `OPENAI_API_KEY` | OpenAI access | No (needed only to call OpenAI) |
-| `OPENAI_MODEL` | OpenAI model name | No |
-| `ANTHROPIC_API_KEY` | Claude access | No (needed only to call Claude) |
-| `ANTHROPIC_MODEL` | Claude model name | No |
-| `GEMINI_API_KEY` | Gemini access | No (needed only to call Gemini) |
-| `GEMINI_MODEL` | Gemini model name | No |
+```
+OPENAI_API_KEY=
+OPENAI_MODEL=
+
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=
+
+GEMINI_API_KEY=
+GEMINI_MODEL=
+```
+
+Also available:
+
+- `APP_NAME`
+- `APP_VERSION`
+- `API_PREFIX`
+- `CORS_ORIGINS`
+- `LLM_TIMEOUT_SECONDS`
+- `LLM_MAX_OUTPUT_TOKENS`
+- `MAX_PROMPT_LENGTH`
 
 Frontend (`frontend/.env.example`):
 
-| Variable | Purpose | Required |
-| --- | --- | --- |
-| `VITE_API_BASE_URL` | FastAPI base URL | No (defaults to `http://localhost:8000`) |
+```
+VITE_API_BASE_URL=http://localhost:8000
+```
 
-Never commit real `.env` files or API keys. Never place LLM keys in frontend code.
+Default models (used when a model variable is omitted):
 
-## 12. Later Work
+- OpenAI: `gpt-4o-mini`
+- Claude: `claude-sonnet-4-5`
+- Gemini: `gemini-2.5-flash`
 
-Phase 6 polishes the existing comparison UI. The required demo is complete. This project does not include authentication, a database, Redis, streaming, or RAG.
+## API Endpoints
+
+- `GET /health`
+- `POST /api/session`
+- `DELETE /api/session/{session_id}`
+- `POST /api/chat/compare`
+- `POST /api/chat/continue`
+
+OpenAPI docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+## Testing
+
+```bash
+cd backend
+pytest
+```
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
+
+Automated backend tests use mocked SDK clients. They do not make paid API calls.
+
+## Limitations
+
+- Sessions are in-memory
+- Sessions disappear after a backend restart
+- Local API keys are required for real provider responses
+- There is no authentication or persistent storage
+
+## Future Improvements
+
+These are optional later ideas, not part of the current project:
+
+- persistent storage
+- authentication
+- streaming
+
+## Demo
+
+See [docs/demo-guide.md](docs/demo-guide.md) for the viva walkthrough.

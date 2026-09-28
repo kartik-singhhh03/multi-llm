@@ -1,13 +1,18 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+_ENV_FILE = _BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Resolve backend/.env from this file so CWD does not matter on Windows.
+        env_file=_ENV_FILE if _ENV_FILE.exists() else ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -22,8 +27,10 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5"
+    # Required when the Anthropic key is organization-scoped, not workspace-scoped.
+    anthropic_workspace_id: str = ""
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
 
     llm_timeout_seconds: float = 30.0
     llm_max_output_tokens: int = 2048
@@ -42,5 +49,3 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     return Settings()
 
-
-settings = get_settings()

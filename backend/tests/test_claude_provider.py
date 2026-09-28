@@ -56,6 +56,17 @@ async def test_claude_missing_api_key_returns_error() -> None:
     assert response.latency_ms >= 0
 
 
+def test_claude_stores_workspace_id_for_header() -> None:
+    provider = ClaudeProvider(
+        api_key="anthropic-test",
+        model="claude-sonnet-4-5",
+        timeout_seconds=30,
+        max_output_tokens=256,
+        workspace_id=" wrkspc_test ",
+    )
+    assert provider._workspace_id == "wrkspc_test"
+
+
 @pytest.mark.asyncio
 async def test_claude_success_sends_system_parameter() -> None:
     client = _fake_claude_client("Claude answer")
@@ -82,6 +93,39 @@ async def test_claude_success_sends_system_parameter() -> None:
     assert "system" not in [
         item["role"] for item in client.messages.last_kwargs["messages"]
     ]
+
+
+@pytest.mark.asyncio
+async def test_claude_workspace_request_error_is_safe() -> None:
+    client = _fake_claude_client_error(
+        _anthropic_status_error(
+            anthropic.BadRequestError,
+            status_code=400,
+            body={
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": (
+                        "This API key is not scoped to a workspace, so this "
+                        "request must include the anthropic-workspace-id header."
+                    ),
+                }
+            },
+        )
+    )
+    provider = ClaudeProvider(
+        api_key="anthropic-test",
+        model="claude-sonnet-4-5",
+        timeout_seconds=30,
+        max_output_tokens=256,
+        client=client,
+    )
+    response = await provider.generate(
+        [Message(role=MessageRole.USER, content="Hello")]
+    )
+    assert response.status == ResponseStatus.ERROR
+    assert response.error is not None
+    assert "workspace" in response.error.lower()
+    assert "anthropic-test" not in response.error
 
 
 @pytest.mark.asyncio
@@ -130,7 +174,9 @@ def _fake_claude_client_error(error: Exception) -> _FakeClaudeClient:
 
 def _anthropic_status_error(
     error_cls: type[anthropic.APIStatusError],
+    status_code: int = 429,
+    body: object | None = None,
 ) -> anthropic.APIStatusError:
     request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
-    response = httpx.Response(429, request=request)
-    return error_cls("request failed", response=response, body=None)
+    response = httpx.Response(status_code, request=request)
+    return error_cls("request failed", response=response, body=body)

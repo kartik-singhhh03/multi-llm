@@ -3,10 +3,10 @@ type LoadingStateProps = {
 };
 
 export function LoadingState({
-  message = "Querying OpenAI, Claude, and Gemini...",
+  message = "Comparing 3 AI models...",
 }: LoadingStateProps) {
   return (
-    <p className="text-xs text-zinc-500" role="status">
+    <p className="mt-0.5 text-xs text-zinc-500" role="status">
       {message}
     </p>
   );

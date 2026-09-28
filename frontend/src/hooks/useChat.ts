@@ -60,8 +60,11 @@ export function useChat() {
       setMode("comparison");
       return true;
     } catch (caught) {
-      setError(toUserFacingError(caught));
-      setMode(hasResults.current ? "comparison" : "idle");
+      const message = toUserFacingError(caught);
+      console.warn("Compare request failed:", message);
+      setError(message);
+      // Keep the comparison panel visible so Compare never snaps back to empty.
+      setMode("comparison");
       return false;
     } finally {
       inFlight.current = false;
@@ -116,7 +119,9 @@ export function useChat() {
       ]);
       return true;
     } catch (caught) {
-      setError(toUserFacingError(caught));
+      const message = toUserFacingError(caught);
+      console.warn("Continue request failed:", message);
+      setError(message);
       return false;
     } finally {
       inFlight.current = false;

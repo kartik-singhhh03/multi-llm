@@ -40,7 +40,7 @@ function App() {
   return (
     <div className="min-h-svh bg-zinc-950 text-zinc-200">
       <AppHeader backendStatus={backendStatus} />
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
         {backendStatus === "disconnected" ? (
           <ErrorState message="Backend Offline. Please make sure the FastAPI server is running." />
         ) : null}
@@ -49,7 +49,7 @@ function App() {
         ) : null}
 
         {chat.mode === "idle" ? (
-          <>
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pt-2 sm:pt-6">
             <EmptyState onChooseExample={(example) => setPrompt(example)} />
             <PromptInput
               value={prompt}
@@ -57,13 +57,15 @@ function App() {
               onSubmit={handleCompare}
               disabled={chat.isSubmitting || backendStatus === "disconnected"}
               submitLabel="Compare"
-              placeholder="Ask one question to compare OpenAI, Claude, and Gemini..."
+              loadingLabel="Comparing..."
+              placeholder="Ask anything..."
+              label="Ask your question"
             />
-          </>
+          </div>
         ) : null}
 
         {chat.mode === "comparing" || chat.mode === "comparison" ? (
-          <>
+          <div className="flex flex-col gap-5">
             <ComparisonPanel
               results={chat.results}
               loading={chat.mode === "comparing"}
@@ -80,9 +82,12 @@ function App() {
               onSubmit={handleCompare}
               disabled={chat.isSubmitting || backendStatus === "disconnected"}
               submitLabel="Compare"
+              loadingLabel="Comparing..."
               placeholder="Ask another comparison question..."
+              label="Ask another comparison question"
+              size="compact"
             />
-          </>
+          </div>
         ) : null}
 
         {chat.mode === "continuation" && chat.selectedProvider ? (

@@ -36,6 +36,7 @@ def get_provider(
             model=resolved.anthropic_model,
             timeout_seconds=resolved.llm_timeout_seconds,
             max_output_tokens=resolved.llm_max_output_tokens,
+            workspace_id=resolved.anthropic_workspace_id,
         )
     return GeminiProvider(
         api_key=resolved.gemini_api_key,

@@ -15,12 +15,12 @@ export function BackendStatus({ status }: BackendStatusProps) {
     status === "checking"
       ? "Checking"
       : status === "connected"
-        ? "Backend Connected"
-        : "Backend Offline";
+        ? "Connected"
+        : "Offline";
 
   return (
     <div
-      className="inline-flex shrink-0 items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/80 px-2.5 py-1 text-xs text-zinc-300"
+      className="inline-flex shrink-0 items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300"
       role="status"
       aria-live="polite"
     >
