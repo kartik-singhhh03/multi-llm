@@ -46,7 +46,7 @@ Cards render in a stable order: OpenAI, Claude, Gemini. A failed provider stays 
 
 ## 3. FastAPI backend
 
-FastAPI loads settings from environment variables (`backend/.env`). CORS allows the Vite origin. Pydantic validates prompts (non-empty, max 8000 characters). Missing sessions return HTTP 404. Individual provider failures still return HTTP 200 with structured error results.
+FastAPI loads settings from the process environment. A local `backend/.env` is used in development when present; Render supplies the same variable names. OS environment variables override the file. CORS is configured with `CORS_ORIGINS` (local Vite origins by default; the Vercel origin in production). Pydantic validates prompts (non-empty, max 8000 characters). Missing sessions return HTTP 404. Individual provider failures still return HTTP 200 with structured error results.
 
 ## 4. Provider abstraction
 
@@ -100,7 +100,8 @@ API keys are backend environment variables. They are not sent to the React app, 
 
 - In-memory sessions only
 - No authentication, database, Redis, streaming, or RAG
-- Real answers require local provider keys
+- Real answers require provider keys on the backend (local `.env` or Render env vars)
+- Production deploy: Vercel frontend + Render backend ([docs/deployment.md](deployment.md))
 - A page refresh starts a new frontend session
 
 Those limits are intentional for this academic prototype.

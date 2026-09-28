@@ -68,6 +68,14 @@ The browser talks only to FastAPI. Provider SDKs and API keys stay on the backen
 
 See [docs/architecture.md](docs/architecture.md) for a viva-oriented explanation.
 
+## Deployment
+
+Frontend → **Vercel**. Backend → **Render** Web Service.
+
+The browser calls FastAPI over HTTPS. OpenAI, Claude, and Gemini keys stay on Render.
+
+See [docs/deployment.md](docs/deployment.md) for the exact Render/Vercel settings. Do not deploy secrets in Git.
+
 ## Local Setup
 
 Prerequisites: Node.js 18+, Python 3.10+, npm.
@@ -124,18 +132,19 @@ Also available:
 - `LLM_TIMEOUT_SECONDS`
 - `LLM_MAX_OUTPUT_TOKENS`
 - `MAX_PROMPT_LENGTH`
+- `ANTHROPIC_WORKSPACE_ID` (leave empty for a workspace-scoped Anthropic key)
 
 Frontend (`frontend/.env.example`):
 
 ```
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
 Default models (used when a model variable is omitted):
 
 - OpenAI: `gpt-4o-mini`
 - Claude: `claude-sonnet-4-5`
-- Gemini: `gemini-2.5-flash`
+- Gemini: `gemini-3.8-flash`
 
 ## API Endpoints
 
@@ -165,8 +174,8 @@ Automated backend tests use mocked SDK clients. They do not make paid API calls.
 ## Limitations
 
 - Sessions are in-memory
-- Sessions disappear after a backend restart
-- Local API keys are required for real provider responses
+- Sessions disappear after a backend restart (including Render restarts)
+- Provider keys are required for real answers (local `.env` or Render env vars)
 - There is no authentication or persistent storage
 
 ## Future Improvements
